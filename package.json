@@ -7,7 +7,9 @@
     "test": "jest --runInBand",
     "test:watch": "jest --watch --runInBand",
     "test:coverage": "jest --coverage --runInBand",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "upload": "node scripts/upload.js",
+    "setup": "node scripts/setup.js"
   },
   "repository": {
     "type": "git",
