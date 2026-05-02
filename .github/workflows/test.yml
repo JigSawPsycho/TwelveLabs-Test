@@ -20,7 +20,14 @@ concurrency:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    runs-on: windows-latest
+
+    # Force bash for `run:` blocks. Setup/teardown steps use POSIX syntax
+    # ($VAR expansion, [ -f ], grep, cut, || true). windows-latest ships
+    # Git Bash, so this works without extra deps.
+    defaults:
+      run:
+        shell: bash
 
     env:
       TWELVELABS_API_KEY: ${{ secrets.TWELVELABS_API_KEY }}
