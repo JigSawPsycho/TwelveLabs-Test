@@ -1,0 +1,68 @@
+name: Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run typecheck
+
+      # GitHub Actions disallows env-var names that start with a digit, but
+      # the test suite reads `5_SEC_VID_IDS` / `10_SEC_VID_IDS` /
+      # `400X400PX_VID_IDS` / `800X800PX_VID_IDS` directly. Write a .env file
+      # so the dotenv loader (registered in jest.config.js setupFiles) can
+      # populate process.env with those exact keys.
+      - name: Write .env from secrets
+        env:
+          TWELVELABS_API_KEY: ${{ secrets.TWELVELABS_API_KEY }}
+          TWELVELABS_INDEX_ID: ${{ secrets.TWELVELABS_INDEX_ID }}
+          TWELVELABS_QUERY_TEXT: ${{ secrets.TWELVELABS_QUERY_TEXT }}
+          TWELVELABS_IMAGE_URL: ${{ secrets.TWELVELABS_IMAGE_URL }}
+          RED_VIDEO_ID: ${{ secrets.RED_VIDEO_ID }}
+          BLUE_VIDEO_ID: ${{ secrets.BLUE_VIDEO_ID }}
+          GREEN_VIDEO_ID: ${{ secrets.GREEN_VIDEO_ID }}
+          RGB_VIDEO_ID: ${{ secrets.RGB_VIDEO_ID }}
+          FIVE_SEC_VID_IDS: ${{ secrets.FIVE_SEC_VID_IDS }}
+          TEN_SEC_VID_IDS: ${{ secrets.TEN_SEC_VID_IDS }}
+          PX400_VID_IDS: ${{ secrets.PX400_VID_IDS }}
+          PX800_VID_IDS: ${{ secrets.PX800_VID_IDS }}
+          TESTNAME_FILENAME: ${{ secrets.TESTNAME_FILENAME }}
+          TESTNAME_FILENAME_VID_ID: ${{ secrets.TESTNAME_FILENAME_VID_ID }}
+        run: |
+          {
+            echo "TWELVELABS_API_KEY=${TWELVELABS_API_KEY}"
+            echo "TWELVELABS_INDEX_ID=${TWELVELABS_INDEX_ID}"
+            echo "TWELVELABS_QUERY_TEXT=${TWELVELABS_QUERY_TEXT}"
+            echo "TWELVELABS_IMAGE_URL=${TWELVELABS_IMAGE_URL}"
+            echo "RED_VIDEO_ID=${RED_VIDEO_ID}"
+            echo "BLUE_VIDEO_ID=${BLUE_VIDEO_ID}"
+            echo "GREEN_VIDEO_ID=${GREEN_VIDEO_ID}"
+            echo "RGB_VIDEO_ID=${RGB_VIDEO_ID}"
+            echo "5_SEC_VID_IDS=${FIVE_SEC_VID_IDS}"
+            echo "10_SEC_VID_IDS=${TEN_SEC_VID_IDS}"
+            echo "400X400PX_VID_IDS=${PX400_VID_IDS}"
+            echo "800X800PX_VID_IDS=${PX800_VID_IDS}"
+            echo "TESTNAME_FILENAME=${TESTNAME_FILENAME}"
+            echo "TESTNAME_FILENAME_VID_ID=${TESTNAME_FILENAME_VID_ID}"
+          } > .env
+
+      - name: Run tests
+        run: npm test
