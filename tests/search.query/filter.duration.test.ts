@@ -109,6 +109,20 @@ describe("search.query filter (duration)", () => {
   });
 
   describeIf(hasCredentials)("boundary", () => {
+    // Passthrough boundary tests assert "filter is a no-op" by comparing
+    // against a no-filter baseline computed once for this describe. Avoids
+    // the fragile `data.length > 0` assertion, which fails for the wrong
+    // reason on an index that happens to return zero results for broadQuery.
+    let baselineLength: number;
+    beforeAll(async () => {
+      const baseline = await client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+      });
+      baselineLength = baseline.data.length;
+    });
+
     // gte=MAX_SAFE_INTEGER is satisfied by no real video duration, so the
     // filter narrows the result set to nothing.
     it("filter duration gte=Number.MAX_SAFE_INTEGER returns an empty Page", async () => {
@@ -125,9 +139,8 @@ describe("search.query filter (duration)", () => {
     });
 
     // lte=MAX_SAFE_INTEGER is satisfied by every real duration, so the
-    // filter degenerates to a passthrough and the search returns its normal
-    // populated Page.
-    it("filter duration lte=Number.MAX_SAFE_INTEGER returns a Page with one or more results", async () => {
+    // filter degenerates to a passthrough and matches the no-filter baseline.
+    it("filter duration lte=Number.MAX_SAFE_INTEGER matches the no-filter baseline (passthrough)", async () => {
       const response = await client.search.query({
         indexId: indexId!,
         searchOptions: ["visual"],
@@ -137,12 +150,12 @@ describe("search.query filter (duration)", () => {
         }),
       });
       expect(response).toBeInstanceOf(Page);
-      expect(response.data.length).toBeGreaterThan(0);
+      expect(response.data).toHaveLength(baselineLength);
     });
 
     // gte=MIN_SAFE_INTEGER is satisfied by every real duration, so the
     // filter is also a passthrough.
-    it("filter duration gte=Number.MIN_SAFE_INTEGER returns a Page with one or more results", async () => {
+    it("filter duration gte=Number.MIN_SAFE_INTEGER matches the no-filter baseline (passthrough)", async () => {
       const response = await client.search.query({
         indexId: indexId!,
         searchOptions: ["visual"],
@@ -152,7 +165,7 @@ describe("search.query filter (duration)", () => {
         }),
       });
       expect(response).toBeInstanceOf(Page);
-      expect(response.data.length).toBeGreaterThan(0);
+      expect(response.data).toHaveLength(baselineLength);
     });
 
     // lte=MIN_SAFE_INTEGER is satisfied by no real duration, so the filter
@@ -185,8 +198,8 @@ describe("search.query filter (duration)", () => {
     });
 
     // gte=-1 is satisfied by every non-negative duration, so the filter
-    // matches every video; result is a populated Page.
-    it("filter duration gte=-1 (negative operator value) returns a Page with one or more results", async () => {
+    // matches every video; result matches the no-filter baseline.
+    it("filter duration gte=-1 (negative operator value) matches the no-filter baseline (passthrough)", async () => {
       const response = await client.search.query({
         indexId: indexId!,
         searchOptions: ["visual"],
@@ -194,7 +207,7 @@ describe("search.query filter (duration)", () => {
         filter: JSON.stringify({ duration: { gte: -1 } }),
       });
       expect(response).toBeInstanceOf(Page);
-      expect(response.data.length).toBeGreaterThan(0);
+      expect(response.data).toHaveLength(baselineLength);
     });
 
     // lte=-1 is satisfied by no non-negative duration, so the filter matches

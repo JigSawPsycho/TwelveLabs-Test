@@ -60,15 +60,6 @@ describe("search.query searchOptions", () => {
       await expect(promise).rejects.toBeInstanceOf(BadRequestError);
     });
 
-    it("given unsupported search option when query runs throws JsonError (SDK enum validation)", async () => {
-      const promise = client.search.query({
-        indexId: indexId!,
-        searchOptions: ["telepathy" as unknown as "visual"],
-        queryText: broadQuery,
-      });
-      await expect(promise).rejects.toBeInstanceOf(JsonError);
-    });
-
     it("given unknown search option when query runs throws JsonError before request (search_option_not_supported)", async () => {
       const promise = client.search.query({
         indexId: indexId!,

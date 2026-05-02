@@ -109,18 +109,5 @@ describe("search.query contract", () => {
       });
       await expect(promise).rejects.toBeInstanceOf(TwelvelabsApiError);
     });
-
-    // Documented under the `index_not_supported_for_search` error code.
-    // Same call shape as the previous test — kept as a separate `it` so a
-    // future SDK change that distinguishes index-not-found from
-    // index-not-supported can split this without ambiguity.
-    it("given nonexistent or non-Marengo index when query runs throws TwelvelabsApiError (index_not_supported_for_search)", async () => {
-      const promise = client.search.query({
-        indexId: NONEXISTENT_VIDEO_ID,
-        searchOptions: ["visual"],
-        queryText: broadQuery,
-      });
-      await expect(promise).rejects.toBeInstanceOf(TwelvelabsApiError);
-    });
   });
 });

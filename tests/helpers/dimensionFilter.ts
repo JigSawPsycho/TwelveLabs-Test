@@ -126,6 +126,20 @@ export const dimensionFilterTests = (
         filter: JSON.stringify(extra),
       });
 
+    // Passthrough boundary tests assert "filter is a no-op" by comparing
+    // against a no-filter baseline computed once for this describe. Avoids
+    // the fragile `data.length > 0` assertion, which fails for the wrong
+    // reason on an index that happens to return zero results for broadQuery.
+    let baselineLength: number;
+    beforeAll(async () => {
+      const baseline = await ctx.client().search.query({
+        indexId: ctx.indexId,
+        searchOptions: ["visual"],
+        queryText: ctx.broadQuery,
+      });
+      baselineLength = baseline.data.length;
+    });
+
     it(`filter ${field} gte=Number.MAX_SAFE_INTEGER returns an empty Page`, async () => {
       const response = await queryUnscoped({
         [field]: { gte: Number.MAX_SAFE_INTEGER },
@@ -134,20 +148,20 @@ export const dimensionFilterTests = (
       expect(response.data).toEqual([]);
     });
 
-    it(`filter ${field} lte=Number.MAX_SAFE_INTEGER returns a Page with one or more results`, async () => {
+    it(`filter ${field} lte=Number.MAX_SAFE_INTEGER matches the no-filter baseline (passthrough)`, async () => {
       const response = await queryUnscoped({
         [field]: { lte: Number.MAX_SAFE_INTEGER },
       });
       expect(response).toBeInstanceOf(Page);
-      expect(response.data.length).toBeGreaterThan(0);
+      expect(response.data).toHaveLength(baselineLength);
     });
 
-    it(`filter ${field} gte=Number.MIN_SAFE_INTEGER returns a Page with one or more results`, async () => {
+    it(`filter ${field} gte=Number.MIN_SAFE_INTEGER matches the no-filter baseline (passthrough)`, async () => {
       const response = await queryUnscoped({
         [field]: { gte: Number.MIN_SAFE_INTEGER },
       });
       expect(response).toBeInstanceOf(Page);
-      expect(response.data.length).toBeGreaterThan(0);
+      expect(response.data).toHaveLength(baselineLength);
     });
 
     it(`filter ${field} lte=Number.MIN_SAFE_INTEGER returns an empty Page`, async () => {
@@ -164,10 +178,10 @@ export const dimensionFilterTests = (
       expect(response.data).toEqual([]);
     });
 
-    it(`filter ${field} gte=-1 (negative operator value) returns a Page with one or more results`, async () => {
+    it(`filter ${field} gte=-1 (negative operator value) matches the no-filter baseline (passthrough)`, async () => {
       const response = await queryUnscoped({ [field]: { gte: -1 } });
       expect(response).toBeInstanceOf(Page);
-      expect(response.data.length).toBeGreaterThan(0);
+      expect(response.data).toHaveLength(baselineLength);
     });
 
     it(`filter ${field} lte=-1 (negative operator value) returns an empty Page`, async () => {
