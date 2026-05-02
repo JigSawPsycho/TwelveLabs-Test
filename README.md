@@ -255,8 +255,7 @@ than skipped.
   - `gte: MAX_SAFE_INTEGER` should return an empty page (no video can
     satisfy it). Currently returns results.
   - `lte: MAX_SAFE_INTEGER` should return the full unfiltered set
-    (every video satisfies it). Currently returns fewer results than
-    the unfiltered baseline.
+    (every video satisfies it). Currently returns 0 results.
 
 ### Run
 
@@ -541,8 +540,7 @@ npm run upload -- <filePath> <indexId> <apiKey>
   - `gte: MAX_SAFE_INTEGER`는 빈 페이지를 반환해야 합니다(어떤
     비디오도 만족할 수 없음). 현재는 결과를 반환합니다.
   - `lte: MAX_SAFE_INTEGER`는 필터 없는 전체 집합을 반환해야 합니다
-    (모든 비디오가 만족함). 현재는 필터 없는 baseline보다 적은
-    결과를 반환합니다.
+    (모든 비디오가 만족함). 현재는 0개 결과를 반환합니다.
 
 ### 실행
 
