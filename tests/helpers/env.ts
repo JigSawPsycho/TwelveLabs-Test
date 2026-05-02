@@ -6,7 +6,7 @@
 export const apiKey = process.env.TWELVELABS_API_KEY?.trim() || undefined;
 export const indexId = process.env.TWELVELABS_INDEX_ID?.trim() || undefined;
 export const broadQuery =
-  process.env.TWELVELABS_QUERY_TEXT?.trim() || "person";
+  process.env.TWELVELABS_QUERY_TEXT?.trim() || "number";
 export const imageUrl = process.env.TWELVELABS_IMAGE_URL?.trim() || undefined;
 
 export const hasCredentials = Boolean(apiKey && indexId);
