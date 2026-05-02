@@ -9,8 +9,45 @@ export const broadQuery =
   process.env.TWELVELABS_QUERY_TEXT?.trim() || "number";
 export const imageUrl = process.env.TWELVELABS_IMAGE_URL?.trim() || undefined;
 
+export const redVideoId = process.env.RED_VIDEO_ID?.trim() || undefined;
+export const blueVideoId = process.env.BLUE_VIDEO_ID?.trim() || undefined;
+export const greenVideoId = process.env.GREEN_VIDEO_ID?.trim() || undefined;
+export const rgbVideoId = process.env.RGB_VIDEO_ID?.trim() || undefined;
+
+/**
+ * Splits a comma-separated env var into a string array. Returns undefined if
+ * the env var is missing or only contains whitespace, which lets callers
+ * gate `describeIf` on Boolean(parsed) cleanly.
+ */
+const parseIdList = (raw: string | undefined): string[] | undefined => {
+  if (!raw) return undefined;
+  const parts = raw
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  return parts.length > 0 ? parts : undefined;
+};
+
+export const fiveSecVideoIds = parseIdList(process.env["5_SEC_VID_IDS"]);
+export const tenSecVideoIds = parseIdList(process.env["10_SEC_VID_IDS"]);
+export const px400VideoIds = parseIdList(process.env["400X400PX_VID_IDS"]);
+export const px800VideoIds = parseIdList(process.env["800X800PX_VID_IDS"]);
+export const testnameFilename =
+  process.env.TESTNAME_FILENAME?.trim() || undefined;
+export const testnameFilenameVideoId =
+  process.env.TESTNAME_FILENAME_VID_ID?.trim() || undefined;
+
 export const hasCredentials = Boolean(apiKey && indexId);
 export const hasImageUrl = hasCredentials && Boolean(imageUrl);
+export const hasColorVideos =
+  hasCredentials &&
+  Boolean(redVideoId && blueVideoId && greenVideoId && rgbVideoId);
+export const hasDurationVideos =
+  hasCredentials && Boolean(fiveSecVideoIds && tenSecVideoIds);
+export const hasDimensionVideos =
+  hasCredentials && Boolean(px400VideoIds && px800VideoIds);
+export const hasFilenameVideo =
+  hasCredentials && Boolean(testnameFilename && testnameFilenameVideoId);
 
 /**
  * `describeIf(true)` -> describe; `describeIf(false)` -> describe.skip.
