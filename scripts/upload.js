@@ -60,7 +60,29 @@ async function getIndexVideoCount(indexId, apiKey) {
   return count;
 }
 
-module.exports = { uploadVideo, getIndexVideoCount };
+async function createIndex(apiKey, options = {}) {
+  const {
+    indexName = `test-autogenerate-${Date.now()}`,
+    models = [
+      { modelName: "marengo3.0", modelOptions: ["visual", "audio"] },
+      { modelName: "pegasus1.2", modelOptions: ["visual", "audio"] },
+    ],
+    addons,
+  } = options;
+
+  if (!apiKey) throw new Error("apiKey is required");
+
+  const client = new TwelveLabs({ apiKey });
+  const payload = { indexName, models };
+  if (addons) payload.addons = addons;
+  const created = await client.indexes.create(payload);
+  if (!created?.id) {
+    throw new Error("indexes.create returned no id");
+  }
+  return { indexId: created.id, indexName };
+}
+
+module.exports = { uploadVideo, getIndexVideoCount, createIndex };
 
 if (require.main === module) {
   const [filePath, indexId, apiKey] = process.argv.slice(2);
