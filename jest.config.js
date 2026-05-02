@@ -10,4 +10,17 @@ module.exports = {
   testTimeout: 60_000,
   verbose: true,
   clearMocks: true,
+  // jest-junit XML is uploaded as a CI artifact so failures can be
+  // inspected without re-running the suite.
+  reporters: [
+    "default",
+    [
+      "jest-junit",
+      {
+        outputDirectory: "reports",
+        outputName: "junit.xml",
+        ancestorSeparator: " > ",
+      },
+    ],
+  ],
 };
