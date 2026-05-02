@@ -237,6 +237,27 @@ Explicit non-goals:
   true` is exercised in `contract.test.ts`; specific filters on
   `user_metadata.*` keys are not.
 
+### Suspected bugs (failing tests)
+
+Five tests currently fail. They appear to be real defects in the
+service, not test bugs — kept in the suite as regression markers rather
+than skipped.
+
+- **`operator=and excludes the silent RGB video (no transcript breaks intersection)`**
+  — `operator: "and"` should return the intersection of the per-modality
+  result sets. Given a visual-only modality returning video A, and a
+  combined modality returning A, B, C, the AND should narrow to {A}. In
+  practice the API returns {A, B, C} — the union, not the intersection.
+  Reproducible in the TwelveLabs web UI with the same fixtures, so the
+  bug is server-side, not SDK-side.
+- **`filter.height` and `filter.width` `MAX_SAFE_INTEGER` boundaries**
+  — no real video can have a dimension `> Number.MAX_SAFE_INTEGER`, so:
+  - `gte: MAX_SAFE_INTEGER` should return an empty page (no video can
+    satisfy it). Currently returns results.
+  - `lte: MAX_SAFE_INTEGER` should return the full unfiltered set
+    (every video satisfies it). Currently returns fewer results than
+    the unfiltered baseline.
+
 ### Run
 
 ```sh
@@ -502,6 +523,26 @@ npm run upload -- <filePath> <indexId> <apiKey>
 - **`user_metadata.*` 필드 수준 필터링.** `includeUserMetadata: true`는
   `contract.test.ts`에서 검증; `user_metadata.*` 키에 대한 구체 필터는
   검증하지 않습니다.
+
+### 의심되는 버그 (실패하는 테스트)
+
+현재 5개 테스트가 실패합니다. 테스트 버그가 아니라 서비스의 실제
+결함으로 보이며 — 스킵하지 않고 회귀 마커로 스위트에 유지합니다.
+
+- **`operator=and excludes the silent RGB video (no transcript breaks intersection)`**
+  — `operator: "and"`는 모달리티별 결과 집합의 교집합을 반환해야
+  합니다. 비주얼 전용 모달리티가 비디오 A를 반환하고, 결합 모달리티가
+  A, B, C를 반환하면 AND는 {A}로 좁혀져야 합니다. 실제로는 API가
+  {A, B, C} — 교집합이 아닌 합집합 — 을 반환합니다. 동일한 픽스처로
+  TwelveLabs 웹 UI에서도 재현되므로 SDK가 아닌 서버 측 버그입니다.
+- **`filter.height` 및 `filter.width`의 `MAX_SAFE_INTEGER` 경계**
+  — 어떤 실제 비디오도 `Number.MAX_SAFE_INTEGER`보다 큰 차원을 가질
+  수 없으므로:
+  - `gte: MAX_SAFE_INTEGER`는 빈 페이지를 반환해야 합니다(어떤
+    비디오도 만족할 수 없음). 현재는 결과를 반환합니다.
+  - `lte: MAX_SAFE_INTEGER`는 필터 없는 전체 집합을 반환해야 합니다
+    (모든 비디오가 만족함). 현재는 필터 없는 baseline보다 적은
+    결과를 반환합니다.
 
 ### 실행
 
