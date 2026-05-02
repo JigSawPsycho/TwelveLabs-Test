@@ -30,22 +30,22 @@ jobs:
       # `400X400PX_VID_IDS` / `800X800PX_VID_IDS` directly. Write a .env file
       # so the dotenv loader (registered in jest.config.js setupFiles) can
       # populate process.env with those exact keys.
-      - name: Write .env from secrets
+      - name: Write .env from secrets and vars
         env:
           TWELVELABS_API_KEY: ${{ secrets.TWELVELABS_API_KEY }}
-          TWELVELABS_INDEX_ID: ${{ secrets.TWELVELABS_INDEX_ID }}
-          TWELVELABS_QUERY_TEXT: ${{ secrets.TWELVELABS_QUERY_TEXT }}
-          TWELVELABS_IMAGE_URL: ${{ secrets.TWELVELABS_IMAGE_URL }}
-          RED_VIDEO_ID: ${{ secrets.RED_VIDEO_ID }}
-          BLUE_VIDEO_ID: ${{ secrets.BLUE_VIDEO_ID }}
-          GREEN_VIDEO_ID: ${{ secrets.GREEN_VIDEO_ID }}
-          RGB_VIDEO_ID: ${{ secrets.RGB_VIDEO_ID }}
-          FIVE_SEC_VID_IDS: ${{ secrets.FIVE_SEC_VID_IDS }}
-          TEN_SEC_VID_IDS: ${{ secrets.TEN_SEC_VID_IDS }}
-          PX400_VID_IDS: ${{ secrets.PX400_VID_IDS }}
-          PX800_VID_IDS: ${{ secrets.PX800_VID_IDS }}
-          TESTNAME_FILENAME: ${{ secrets.TESTNAME_FILENAME }}
-          TESTNAME_FILENAME_VID_ID: ${{ secrets.TESTNAME_FILENAME_VID_ID }}
+          TWELVELABS_INDEX_ID: ${{ vars.TWELVELABS_INDEX_ID }}
+          TWELVELABS_QUERY_TEXT: ${{ vars.TWELVELABS_QUERY_TEXT }}
+          TWELVELABS_IMAGE_URL: ${{ vars.TWELVELABS_IMAGE_URL }}
+          RED_VIDEO_ID: ${{ vars.RED_VIDEO_ID }}
+          BLUE_VIDEO_ID: ${{ vars.BLUE_VIDEO_ID }}
+          GREEN_VIDEO_ID: ${{ vars.GREEN_VIDEO_ID }}
+          RGB_VIDEO_ID: ${{ vars.RGB_VIDEO_ID }}
+          FIVE_SEC_VID_IDS: ${{ vars.FIVE_SEC_VID_IDS }}
+          TEN_SEC_VID_IDS: ${{ vars.TEN_SEC_VID_IDS }}
+          PX400_VID_IDS: ${{ vars.PX400_VID_IDS }}
+          PX800_VID_IDS: ${{ vars.PX800_VID_IDS }}
+          TESTNAME_FILENAME: ${{ vars.TESTNAME_FILENAME }}
+          TESTNAME_FILENAME_VID_ID: ${{ vars.TESTNAME_FILENAME_VID_ID }}
         run: |
           {
             echo "TWELVELABS_API_KEY=${TWELVELABS_API_KEY}"
