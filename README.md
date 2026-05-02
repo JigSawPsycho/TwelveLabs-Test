@@ -24,7 +24,7 @@ since been split into per-parameter files under `tests/search.query/`.
 - **Graceful skip via `describeIf`.** Only `TWELVELABS_API_KEY` and
   `TWELVELABS_INDEX_ID` are mandatory; every fixture-dependent group
   skips cleanly without those fixtures (color tests, dimension tests,
-  duration tests, filename test, image-search tests).
+  duration tests, filename test).
 - **Error class taxonomy preserved.** `BadRequestError` (HTTP 400),
   `JsonError` (SDK enum/serializer rejection — never sent), and
   `TwelvelabsApiError` (everything else, including 401/403/404/429) are
@@ -39,7 +39,6 @@ The `search.query` parameter surface is large. Choices made for this
 | Parameter                | Coverage                                                                                               |
 | ------------------------ | ------------------------------------------------------------------------------------------------------ |
 | `queryText`              | length boundary (500-token cap), empty/whitespace, missing                                              |
-| `queryMediaType` / `Url` | image happy path, image+text, missing URL, 404 URL, non-URL, non-image content, invalid enum            |
 | `searchOptions`          | missing, empty array, duplicates, unknown enum                                                           |
 | `transcriptionOptions`   | invalid enum (happy paths exercised in `contract` and `operator`)                                        |
 | `groupBy`                | `video`, `clip`, invalid enum                                                                             |
@@ -63,6 +62,7 @@ assets/                      sample .mp4 fixtures used to seed the test index
 scripts/
   upload.js                  upload a single video and poll until indexed
   setup.js                   bulk-upload every assets/*.mp4 to an empty index
+  teardown.js                delete an index and every video inside it
 tests/
   helpers/
     client.ts                shared TwelveLabs client
@@ -73,7 +73,6 @@ tests/
     auth.test.ts             auth / failure scenarios
     contract.test.ts         compile-time + response shape guards
     queryText.test.ts
-    queryMedia.test.ts       image-search (skips without TWELVELABS_IMAGE_URL)
     pageLimit.test.ts
     operator.test.ts
     searchOptions.test.ts
@@ -186,7 +185,6 @@ Edit `.env`:
 | `TWELVELABS_API_KEY`       | yes      | API key for your TwelveLabs account.                             |
 | `TWELVELABS_INDEX_ID`      | yes      | Existing index (Marengo engine) with at least one video indexed. |
 | `TWELVELABS_QUERY_TEXT`    | no       | Text query likely to return results. Defaults to `number`.       |
-| `TWELVELABS_IMAGE_URL`     | no       | Public image URL; image-search tests skip if absent.             |
 | `RED_VIDEO_ID`             | no       | Color filter fixtures. All four needed to enable color tests.    |
 | `BLUE_VIDEO_ID`            | no       |                                                                  |
 | `GREEN_VIDEO_ID`           | no       |                                                                  |
@@ -228,8 +226,8 @@ Explicit non-goals:
   surfaces through the broader `TwelvelabsApiError` assertions.
 - **Pegasus engine indexes.** `search.query` requires Marengo; out of
   scope.
-- **Audio-only search.** `queryMediaType` is `enum_(["image"])`; audio
-  is rejected client-side and pinned in `queryMedia.test.ts`.
+- **Image-search (`queryMediaType` / `queryMediaUrl`).** Documented
+  image-URL search path is not exercised in this suite.
 - **Score-ordering invariant** (scores non-increasing within a Page).
   Top-result identity is asserted in `operator.test.ts`; full-page
   monotonic ordering is not pinned.
@@ -252,13 +250,23 @@ Tests run with `--runInBand` because the search endpoint is rate-limited.
 ### CI
 
 `.github/workflows/test.yml` runs typecheck + tests on PRs and pushes to
-`main`. `TWELVELABS_API_KEY` is a repo **secret**; everything else is a
-repo **variable**. The workflow writes `.env` at runtime — needed
-because GitHub Actions disallows env var names starting with a digit
-(`5_SEC_VID_IDS`, `10_SEC_VID_IDS`, `400X400PX_VID_IDS`,
-`800X800PX_VID_IDS`), so they are mapped from `FIVE_SEC_VID_IDS` /
-`TEN_SEC_VID_IDS` / `PX400_VID_IDS` / `PX800_VID_IDS` vars into the
-correct keys in the generated `.env`.
+`main`. The only required repo **secret** is `TWELVELABS_API_KEY` — no
+repo variables are needed. Each run is hermetic:
+
+1. **Setup** — `scripts/setup.js --create-new-index --index-name=citest-autogenerate-<sha>`
+   provisions a fresh index, uploads every `assets/*.mp4`, and writes a
+   `.env` with `TWELVELABS_INDEX_ID` + every fixture `*_VID_ID` the
+   suite reads.
+2. **Test** — `npm test` against that index.
+3. **Teardown** — `if: always()`, reads `TWELVELABS_INDEX_ID` from
+   `.env` and calls `scripts/teardown.js` to delete the index (and all
+   uploaded videos). Runs even when tests fail. The commit-SHA in the
+   index name keeps any leak attributable.
+
+Tradeoff: each CI run re-uploads + indexes ~9 fixtures (minutes of
+indexing latency) instead of reusing a shared index. In return: no
+cross-run state, no quota for stray uploads, no need to manage repo
+variables for fixture IDs.
 
 ## 한국어
 
@@ -285,7 +293,7 @@ Simple scenarios)을 사용해 구성되었습니다. 이후 `tests/search.query
 - **`describeIf`를 통한 정상적 스킵.** `TWELVELABS_API_KEY`와
   `TWELVELABS_INDEX_ID`만 필수이며, 픽스처에 의존하는 모든 그룹은 해당
   픽스처가 없으면 깔끔하게 스킵됩니다(컬러 테스트, 차원 테스트, 길이
-  테스트, 파일명 테스트, 이미지 검색 테스트).
+  테스트, 파일명 테스트).
 - **에러 클래스 분류 보존.** `BadRequestError`(HTTP 400),
   `JsonError`(SDK enum/직렬화 거부 — 전송되지 않음), `TwelvelabsApiError`
   (401/403/404/429 포함 그 외 전부)를 명시적으로 어설션합니다. 모두
@@ -299,7 +307,6 @@ Simple scenarios)을 사용해 구성되었습니다. 이후 `tests/search.query
 | 매개변수                  | 커버리지                                                                                            |
 | ------------------------ | -------------------------------------------------------------------------------------------------- |
 | `queryText`              | 길이 경계(500 토큰 상한), 빈 문자열/공백, 누락                                                       |
-| `queryMediaType` / `Url` | 이미지 happy path, 이미지+텍스트, URL 누락, 404 URL, URL 아님, 이미지 아닌 콘텐츠, 잘못된 enum         |
 | `searchOptions`          | 누락, 빈 배열, 중복, 알 수 없는 enum                                                                |
 | `transcriptionOptions`   | 잘못된 enum(happy path는 `contract`와 `operator`에서 검증)                                          |
 | `groupBy`                | `video`, `clip`, 잘못된 enum                                                                        |
@@ -323,6 +330,7 @@ assets/                      테스트 인덱스 시드용 .mp4 샘플 픽스처
 scripts/
   upload.js                  단일 비디오 업로드 후 인덱싱 완료까지 폴링
   setup.js                   assets/*.mp4 전부를 빈 인덱스에 일괄 업로드
+  teardown.js                인덱스와 그 안의 모든 비디오 삭제
 tests/
   helpers/
     client.ts                공유 TwelveLabs 클라이언트
@@ -333,7 +341,6 @@ tests/
     auth.test.ts             인증 / 실패 시나리오
     contract.test.ts         컴파일 타임 + 응답 형태 가드
     queryText.test.ts
-    queryMedia.test.ts       이미지 검색(TWELVELABS_IMAGE_URL 없으면 스킵)
     pageLimit.test.ts
     operator.test.ts
     searchOptions.test.ts
@@ -446,7 +453,6 @@ npm run upload -- <filePath> <indexId> <apiKey>
 | `TWELVELABS_API_KEY`       | 예   | TwelveLabs 계정의 API 키.                                           |
 | `TWELVELABS_INDEX_ID`      | 예   | 최소 1개 이상 비디오가 인덱싱된 기존 인덱스(Marengo 엔진).             |
 | `TWELVELABS_QUERY_TEXT`    | 아니오 | 결과를 반환할 가능성이 높은 텍스트 쿼리. 기본값 `number`.             |
-| `TWELVELABS_IMAGE_URL`     | 아니오 | 공개 이미지 URL; 없으면 이미지 검색 테스트는 스킵.                     |
 | `RED_VIDEO_ID`             | 아니오 | 컬러 필터 픽스처. 컬러 테스트 활성화에는 4개 모두 필요.                |
 | `BLUE_VIDEO_ID`            | 아니오 |                                                                     |
 | `GREEN_VIDEO_ID`           | 아니오 |                                                                     |
@@ -486,8 +492,8 @@ npm run upload -- <filePath> <indexId> <apiKey>
   위해 API를 두드리는 것은 비매너적이라 검증하지 않습니다. 해당 클래스는
   더 넓은 `TwelvelabsApiError` 어설션을 통해 노출됩니다.
 - **Pegasus 엔진 인덱스.** `search.query`는 Marengo가 필요; 범위 외.
-- **오디오 전용 검색.** `queryMediaType`은 `enum_(["image"])`; 오디오는
-  클라이언트 측에서 거부되며 `queryMedia.test.ts`에 고정되어 있습니다.
+- **이미지 검색 (`queryMediaType` / `queryMediaUrl`).** 문서화된 이미지
+  URL 검색 경로는 본 스위트에서 검증하지 않습니다.
 - **점수 정렬 불변량** (Page 내에서 점수가 비증가). 최상위 결과 식별은
   `operator.test.ts`에서 어설션; 페이지 전체의 단조 정렬은 고정하지
   않습니다.
@@ -511,10 +517,20 @@ search 엔드포인트가 레이트 리밋되어 있어 테스트는 `--runInBan
 ### CI
 
 `.github/workflows/test.yml`은 PR 및 `main` 푸시 시 typecheck + 테스트를
-실행합니다. `TWELVELABS_API_KEY`는 리포 **시크릿**이며 그 외 전부는 리포
-**변수**입니다. 워크플로는 런타임에 `.env`를 작성하는데 — GitHub
-Actions가 숫자로 시작하는 env 변수 이름(`5_SEC_VID_IDS`,
-`10_SEC_VID_IDS`, `400X400PX_VID_IDS`, `800X800PX_VID_IDS`)을 허용하지
-않기 때문 — 이들은 `FIVE_SEC_VID_IDS` / `TEN_SEC_VID_IDS` /
-`PX400_VID_IDS` / `PX800_VID_IDS` 변수에서 생성된 `.env`의 올바른 키로
-매핑됩니다.
+실행합니다. 필요한 리포 **시크릿**은 `TWELVELABS_API_KEY` 하나뿐 — 리포
+변수는 필요 없습니다. 각 실행은 hermetic합니다:
+
+1. **Setup** — `scripts/setup.js --create-new-index --index-name=citest-autogenerate-<sha>`
+   가 새 인덱스를 프로비저닝하고, 모든 `assets/*.mp4`를 업로드하며,
+   스위트가 읽는 `TWELVELABS_INDEX_ID` + 모든 픽스처 `*_VID_ID`가 들어간
+   `.env`를 작성합니다.
+2. **Test** — 해당 인덱스에 대해 `npm test`.
+3. **Teardown** — `if: always()`, `.env`에서 `TWELVELABS_INDEX_ID`를
+   읽어 `scripts/teardown.js`를 호출해 인덱스(와 업로드된 모든 비디오)를
+   삭제합니다. 테스트 실패 시에도 실행됩니다. 인덱스 이름의 커밋 SHA로
+   누수가 발생해도 추적 가능합니다.
+
+트레이드오프: 각 CI 실행이 약 9개 픽스처를 재업로드 + 인덱싱(인덱싱
+지연 수 분)합니다 — 공유 인덱스 재사용 대신. 그 대가로: 실행 간 상태
+없음, 떠도는 업로드를 위한 쿼터 불필요, 픽스처 ID용 리포 변수 관리
+불필요.

@@ -49,15 +49,16 @@ async function uploadVideo(filePath, indexId, apiKey, options = {}) {
   return { taskId, videoId: task.videoId, status: task.status, filename };
 }
 
-async function getIndexVideoCount(indexId, apiKey) {
+async function getIndexVideoIds(indexId, apiKey) {
   const client = new TwelveLabs({ apiKey });
   let page = await client.indexes.videos.list(indexId, { pageLimit: 50 });
-  let count = page.data?.length ?? 0;
+  const ids = [];
+  for (const v of page.data ?? []) if (v.id) ids.push(v.id);
   while (typeof page.hasNextPage === "function" && page.hasNextPage()) {
     page = await page.getNextPage();
-    count += page.data?.length ?? 0;
+    for (const v of page.data ?? []) if (v.id) ids.push(v.id);
   }
-  return count;
+  return ids;
 }
 
 async function createIndex(apiKey, options = {}) {
@@ -82,7 +83,13 @@ async function createIndex(apiKey, options = {}) {
   return { indexId: created.id, indexName };
 }
 
-module.exports = { uploadVideo, getIndexVideoCount, createIndex };
+async function deleteIndex(indexId, apiKey) {
+  if (!indexId || !apiKey) throw new Error("indexId and apiKey are required");
+  const client = new TwelveLabs({ apiKey });
+  await client.indexes.delete(indexId);
+}
+
+module.exports = { uploadVideo, getIndexVideoIds, createIndex, deleteIndex };
 
 if (require.main === module) {
   const [filePath, indexId, apiKey] = process.argv.slice(2);

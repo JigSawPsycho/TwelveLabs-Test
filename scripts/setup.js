@@ -1,6 +1,6 @@
 const fs = require("fs");
 const path = require("path");
-const { uploadVideo, getIndexVideoCount, createIndex } = require("./upload");
+const { uploadVideo, getIndexVideoIds, createIndex } = require("./upload");
 
 const ASSETS_DIR = path.resolve(__dirname, "..", "assets");
 const ENV_PATH = path.resolve(__dirname, "..", ".env");
@@ -28,6 +28,15 @@ function usage() {
   console.error("  refuses if existing index is non-empty unless --force is passed.");
   console.error("  writes .env with credentials + uploaded video IDs.");
   console.error("  refuses to overwrite existing .env unless --force is passed.");
+  console.error("");
+  console.error("  env: ALLOWED_IDS=id1,id2,...  if set, refuses to proceed when the");
+  console.error("       existing index contains any video id outside this list.");
+}
+
+function parseAllowedIds(raw) {
+  if (!raw) return undefined;
+  const parts = raw.split(",").map((s) => s.trim()).filter(Boolean);
+  return parts.length > 0 ? parts : undefined;
 }
 
 function parseFlagValue(args, name) {
@@ -45,11 +54,15 @@ function buildEnvContent(indexId, apiKey, results) {
   }
 
   const get = (k) => idByVar[k] || "";
+  const allowedIds = results
+    .filter((r) => r.videoId)
+    .map((r) => r.videoId);
   const lines = [
     `TWELVELABS_API_KEY=${apiKey}`,
     `TWELVELABS_INDEX_ID=${indexId}`,
     `TWELVELABS_QUERY_TEXT=color`,
-    `# TWELVELABS_IMAGE_URL=https://example.com/your-image.jpg`,
+    ``,
+    `ALLOWED_IDS=${allowedIds.join(",")}`,
     ``,
     `RED_VIDEO_ID=${get("RED_VIDEO_ID")}`,
     `BLUE_VIDEO_ID=${get("BLUE_VIDEO_ID")}`,
@@ -119,16 +132,28 @@ async function main() {
     }
   } else {
     console.log(`checking index ${indexId}...`);
-    let existing;
+    let currentIds;
     try {
-      existing = await getIndexVideoCount(indexId, apiKey);
+      currentIds = await getIndexVideoIds(indexId, apiKey);
     } catch (err) {
       console.error(`index check failed: ${err.message || err}`);
       process.exit(2);
     }
 
-    if (existing > 0 && !force) {
-      console.error(`index not empty — found ${existing} existing video(s). pass --force to upload anyway.`);
+    const allowedIds = parseAllowedIds(process.env.ALLOWED_IDS);
+    if (allowedIds) {
+      const allowedSet = new Set(allowedIds);
+      const unapproved = currentIds.filter((id) => !allowedSet.has(id));
+      if (unapproved.length > 0) {
+        console.error(
+          `the test index contains unapproved ids, please remove the following ids:\n  ${unapproved.join("\n  ")}`,
+        );
+        process.exit(5);
+      }
+    }
+
+    if (currentIds.length > 0 && !force) {
+      console.error(`index not empty — found ${currentIds.length} existing video(s). pass --force to upload anyway.`);
       process.exit(3);
     }
   }

@@ -7,7 +7,6 @@ export const apiKey = process.env.TWELVELABS_API_KEY?.trim() || undefined;
 export const indexId = process.env.TWELVELABS_INDEX_ID?.trim() || undefined;
 export const broadQuery =
   process.env.TWELVELABS_QUERY_TEXT?.trim() || "number";
-export const imageUrl = process.env.TWELVELABS_IMAGE_URL?.trim() || undefined;
 
 export const redVideoId = process.env.RED_VIDEO_ID?.trim() || undefined;
 export const blueVideoId = process.env.BLUE_VIDEO_ID?.trim() || undefined;
@@ -38,7 +37,6 @@ export const testnameFilenameVideoId =
   process.env.TESTNAME_FILENAME_VID_ID?.trim() || undefined;
 
 export const hasCredentials = Boolean(apiKey && indexId);
-export const hasImageUrl = hasCredentials && Boolean(imageUrl);
 export const hasColorVideos =
   hasCredentials &&
   Boolean(redVideoId && blueVideoId && greenVideoId && rgbVideoId);

@@ -11,17 +11,20 @@ on:
     - cron: "0 13 * * *"
   workflow_dispatch:
 
-# Test runs share one API key + one index. Serialize globally so two
-# concurrent runs never compete for rate-limit budget on the same
-# fixtures. cancel-in-progress is intentionally false: a queued run
-# represents real work to verify, not work to discard.
+# Each run creates and destroys its own index, so concurrent runs no
+# longer share fixtures. Cancelling in-progress runs is still off — a
+# queued run represents real work to verify, not work to discard.
 concurrency:
-  group: twelvelabs-shared-index
+  group: twelvelabs-ci-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
   test:
     runs-on: ubuntu-latest
+
+    env:
+      TWELVELABS_API_KEY: ${{ secrets.TWELVELABS_API_KEY }}
+      INDEX_NAME: citest-autogenerate-${{ github.sha }}
 
     steps:
       - uses: actions/checkout@v4
@@ -38,47 +41,29 @@ jobs:
       - name: Type check
         run: npm run typecheck
 
-      # GitHub Actions disallows env-var names that start with a digit, but
-      # the test suite reads `5_SEC_VID_IDS` / `10_SEC_VID_IDS` /
-      # `400X400PX_VID_IDS` / `800X800PX_VID_IDS` directly. Write a .env file
-      # so the dotenv loader (registered in jest.config.js setupFiles) can
-      # populate process.env with those exact keys.
-      - name: Write .env from secrets and vars
-        env:
-          TWELVELABS_API_KEY: ${{ secrets.TWELVELABS_API_KEY }}
-          TWELVELABS_INDEX_ID: ${{ vars.TWELVELABS_INDEX_ID }}
-          TWELVELABS_QUERY_TEXT: ${{ vars.TWELVELABS_QUERY_TEXT }}
-          TWELVELABS_IMAGE_URL: ${{ vars.TWELVELABS_IMAGE_URL }}
-          RED_VIDEO_ID: ${{ vars.RED_VIDEO_ID }}
-          BLUE_VIDEO_ID: ${{ vars.BLUE_VIDEO_ID }}
-          GREEN_VIDEO_ID: ${{ vars.GREEN_VIDEO_ID }}
-          RGB_VIDEO_ID: ${{ vars.RGB_VIDEO_ID }}
-          FIVE_SEC_VID_IDS: ${{ vars.FIVE_SEC_VID_IDS }}
-          TEN_SEC_VID_IDS: ${{ vars.TEN_SEC_VID_IDS }}
-          PX400_VID_IDS: ${{ vars.PX400_VID_IDS }}
-          PX800_VID_IDS: ${{ vars.PX800_VID_IDS }}
-          TESTNAME_FILENAME: ${{ vars.TESTNAME_FILENAME }}
-          TESTNAME_FILENAME_VID_ID: ${{ vars.TESTNAME_FILENAME_VID_ID }}
-        run: |
-          {
-            echo "TWELVELABS_API_KEY=${TWELVELABS_API_KEY}"
-            echo "TWELVELABS_INDEX_ID=${TWELVELABS_INDEX_ID}"
-            echo "TWELVELABS_QUERY_TEXT=${TWELVELABS_QUERY_TEXT}"
-            echo "TWELVELABS_IMAGE_URL=${TWELVELABS_IMAGE_URL}"
-            echo "RED_VIDEO_ID=${RED_VIDEO_ID}"
-            echo "BLUE_VIDEO_ID=${BLUE_VIDEO_ID}"
-            echo "GREEN_VIDEO_ID=${GREEN_VIDEO_ID}"
-            echo "RGB_VIDEO_ID=${RGB_VIDEO_ID}"
-            echo "5_SEC_VID_IDS=${FIVE_SEC_VID_IDS}"
-            echo "10_SEC_VID_IDS=${TEN_SEC_VID_IDS}"
-            echo "400X400PX_VID_IDS=${PX400_VID_IDS}"
-            echo "800X800PX_VID_IDS=${PX800_VID_IDS}"
-            echo "TESTNAME_FILENAME=${TESTNAME_FILENAME}"
-            echo "TESTNAME_FILENAME_VID_ID=${TESTNAME_FILENAME_VID_ID}"
-          } > .env
+      # Creates a fresh index named citest-autogenerate-<sha>, uploads every
+      # fixture in assets/, and writes .env (with TWELVELABS_INDEX_ID + every
+      # *_VID_ID the suite needs). dotenv (jest.config.js setupFiles) reads
+      # this .env at test start.
+      - name: Setup index and upload fixtures
+        run: node scripts/setup.js "$TWELVELABS_API_KEY" --create-new-index --index-name="$INDEX_NAME" --force
 
       - name: Run tests
         run: npm test
+
+      # Always tear down — even on test failure — so we don't leak indexes.
+      # Reads the index ID setup.js wrote into .env. `|| true` so a failed
+      # delete doesn't mask the real test result; the index name embeds the
+      # commit SHA so leaks are still attributable.
+      - name: Delete index
+        if: always()
+        run: |
+          if [ -f .env ]; then
+            INDEX_ID=$(grep '^TWELVELABS_INDEX_ID=' .env | cut -d= -f2)
+            if [ -n "$INDEX_ID" ]; then
+              node scripts/teardown.js "$INDEX_ID" "$TWELVELABS_API_KEY" || true
+            fi
+          fi
 
       - name: Upload jest-junit results
         if: always()
