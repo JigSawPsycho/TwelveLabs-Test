@@ -20,14 +20,7 @@ concurrency:
 
 jobs:
   test:
-    runs-on: windows-latest
-
-    # Force bash for `run:` blocks. Setup/teardown steps use POSIX syntax
-    # ($VAR expansion, [ -f ], grep, cut, || true). windows-latest ships
-    # Git Bash, so this works without extra deps.
-    defaults:
-      run:
-        shell: bash
+    runs-on: ubuntu-latest
 
     env:
       TWELVELABS_API_KEY: ${{ secrets.TWELVELABS_API_KEY }}
@@ -39,7 +32,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 24
           cache: npm
 
       - name: Install dependencies

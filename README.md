@@ -99,7 +99,7 @@ tests/
 | `@types/jest`               | ^30.0.0    |
 | `@types/node`               | ^25.6.0    |
 | `dotenv`                    | ^17.4.2    |
-| Node.js (CI)                | 20         |
+| Node.js (CI)                | 24         |
 
 ### Setup
 
@@ -387,7 +387,7 @@ tests/
 | `@types/jest`               | ^30.0.0    |
 | `@types/node`               | ^25.6.0    |
 | `dotenv`                    | ^17.4.2    |
-| Node.js (CI)                | 20         |
+| Node.js (CI)                | 24         |
 
 ### 설치
 
