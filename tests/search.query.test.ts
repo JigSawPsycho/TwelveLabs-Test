@@ -1469,4 +1469,330 @@ describe("search.query", () => {
       });
     },
   );
+
+  /**
+   * Auth failures. The SDK does not declare an Unauthorized class — every
+   * non-400/429 status (including 401/403) surfaces as the base
+   * TwelvelabsApiError. Construction itself does not validate the key, so the
+   * failure shows up on the first request.
+   */
+  describeIf(hasCredentials)("auth failures", () => {
+    const callWithKey = (key: string) =>
+      new TwelveLabs({ apiKey: key }).search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+        pageLimit: 1,
+      });
+
+    it("given an invalid apiKey when query runs throws TwelvelabsApiError", async () => {
+      await expect(
+        callWithKey("tlk_invalid_key_for_test_xxxxxxxxxxxx"),
+      ).rejects.toBeInstanceOf(TwelvelabsApiError);
+    });
+
+    // Empty apiKey is rejected by the wrapper constructor synchronously,
+    // before any request can be issued, so the failure surfaces as a plain
+    // Error from the constructor rather than an async TwelvelabsApiError.
+    it("given an empty apiKey the TwelveLabs constructor throws synchronously", () => {
+      expect(() => new TwelveLabs({ apiKey: "" })).toThrow(/Provide `apiKey`/);
+    });
+
+    it("given a malformed apiKey (no tlk_ prefix) when query runs throws TwelvelabsApiError", async () => {
+      await expect(
+        callWithKey("not-an-api-key-at-all"),
+      ).rejects.toBeInstanceOf(TwelvelabsApiError);
+    });
+  });
+
+  /**
+   * Required-content gaps not covered by the existing "required parameters"
+   * block. The earlier block proves the SDK rejects missing indexId/
+   * searchOptions before hitting the wire; this one pins what happens when
+   * those are present but query content (text or media) is missing or
+   * degenerate, and what happens when searchOptions is shaped oddly.
+   */
+  describeIf(hasCredentials)("missing query content", () => {
+    it("given neither queryText nor queryMediaUrl when query runs throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+      } as unknown as SearchWrapper.QueryRequest);
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    it("given queryText='' (empty string) when query runs throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: "",
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    it("given queryText='   ' (whitespace only) when query runs throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: "   ",
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    // SDK iterates searchOptions unconditionally, so an empty array sends zero
+    // search_options form fields. Server then rejects the request as missing
+    // a required parameter.
+    it("given searchOptions=[] (empty array) when query runs throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: [],
+        queryText: broadQuery,
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    // Duplicates are still valid enum values; the SDK serializer does not
+    // dedupe before sending. Server tolerates the repeat and returns a normal
+    // Page rather than rejecting the request.
+    it("given duplicate searchOptions=['visual','visual'] when query runs returns a Page", async () => {
+      const response = await client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual", "visual"],
+        queryText: broadQuery,
+        pageLimit: 1,
+      });
+      expect(response).toBeInstanceOf(Page);
+    });
+
+    it("given queryMediaType='image' without queryMediaUrl when query runs throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryMediaType: "image",
+      } as unknown as SearchWrapper.QueryRequest);
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+  });
+
+  /**
+   * Image-query failure modes. The SDK forwards the URL string verbatim; the
+   * server is the one that fetches it, so each of these surfaces as a 400
+   * (BadRequestError) once the server rejects the upstream content.
+   */
+  describeIf(hasCredentials)("image query: invalid queryMediaUrl", () => {
+    it("given queryMediaUrl that 404s when query runs throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryMediaType: "image",
+        queryMediaUrl: "https://example.com/this-image-does-not-exist-404.jpg",
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    it("given queryMediaUrl that is not a URL when query runs throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryMediaType: "image",
+        queryMediaUrl: "not-a-url",
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    it("given queryMediaUrl pointing to non-image content when query runs throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryMediaType: "image",
+        queryMediaUrl: "https://example.com/index.html",
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+  });
+
+  /**
+   * Filter inputs that the existing blocks don't cover yet. Each pins one
+   * specific input shape so a regression isolates which one changed.
+   */
+  describeIf(hasCredentials)("filter parameter: additional invalid inputs", () => {
+    // Inverted range is satisfiable by no real value, but the bounds
+    // themselves are valid, so the server accepts the filter and the
+    // result narrows to nothing rather than rejecting outright.
+    it("filter duration with inverted range {gte:10, lte:5} returns an empty Page", async () => {
+      const response = await client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+        filter: JSON.stringify({ duration: { gte: 10, lte: 5 } }),
+      });
+      expect(response).toBeInstanceOf(Page);
+      expect(response.data).toEqual([]);
+    });
+
+    // Empty id array is well-formed JSON, but the server rejects it as an
+    // invalid filter rather than treating it as a "match none" passthrough.
+    // The rejection arrives with a non-400 status, so it surfaces as the
+    // base TwelvelabsApiError rather than BadRequestError specifically.
+    it("filter with empty id array {id: []} throws TwelvelabsApiError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+        filter: JSON.stringify({ id: [] }),
+      });
+      await expect(promise).rejects.toBeInstanceOf(TwelvelabsApiError);
+    });
+
+    it("filter with non-string id entries {id: [123]} throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+        filter: JSON.stringify({ id: [123] }),
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    // 5-char "short" is not a valid TwelveLabs video ID; server rejects
+    // before evaluating the filter.
+    it("filter with malformed-format id {id: ['short']} throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+        filter: JSON.stringify({ id: ["short"] }),
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+
+    // Server silently ignores unknown top-level filter keys rather than
+    // rejecting the request. Pinned here so a future tightening (the server
+    // starting to reject unknowns) shows up as a test failure.
+    it("filter with unknown top-level key {bogus_field: 5} returns a Page (server ignores unknown keys)", async () => {
+      const response = await client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+        filter: JSON.stringify({ bogus_field: 5 }),
+      });
+      expect(response).toBeInstanceOf(Page);
+    });
+
+    // filename only supports exact-equality matches, so a range operator on
+    // it is rejected as an unsupported operator combination.
+    it("filter with range operator on filename {filename: {gte: 'x'}} throws BadRequestError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+        filter: JSON.stringify({ filename: { gte: "x" } }),
+      });
+      await expect(promise).rejects.toBeInstanceOf(BadRequestError);
+    });
+  });
+
+  /**
+   * Enum validation. The SDK declares groupBy / transcriptionOptions /
+   * queryMediaType as enum_(...), so unknown values are rejected client-side
+   * during serialization (JsonError) before any HTTP request is sent. This
+   * mirrors the existing operator='xor' test for the other enums.
+   */
+  describeIf(hasCredentials)("enum validation", () => {
+    it("given groupBy='foo' (invalid enum) when query runs throws JsonError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryText: broadQuery,
+        groupBy:
+          "foo" as unknown as TwelvelabsApi.SearchCreateRequestGroupBy,
+      });
+      await expect(promise).rejects.toBeInstanceOf(JsonError);
+    });
+
+    it("given transcriptionOptions=['bogus'] (invalid enum) when query runs throws JsonError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual", "transcription"],
+        queryText: broadQuery,
+        transcriptionOptions: [
+          "bogus" as unknown as TwelvelabsApi.SearchCreateRequestTranscriptionOptionsItem,
+        ],
+      });
+      await expect(promise).rejects.toBeInstanceOf(JsonError);
+    });
+
+    // queryMediaType is enum_(["image"]) — "audio" is not a member, so the
+    // SDK rejects it client-side.
+    it("given queryMediaType='audio' (not in enum) when query runs throws JsonError", async () => {
+      const promise = client.search.query({
+        indexId: indexId!,
+        searchOptions: ["visual"],
+        queryMediaType:
+          "audio" as unknown as TwelvelabsApi.SearchCreateRequestQueryMediaType,
+        queryMediaUrl: "https://example.com/x.jpg",
+      });
+      await expect(promise).rejects.toBeInstanceOf(JsonError);
+    });
+  });
+
+  /**
+   * Pagination retrieve-token failures. The existing block already covers an
+   * "expired-or-invalid"-shaped token; these add empty/null inputs which the
+   * SDK forwards to the server as the path segment.
+   */
+  describeIf(hasCredentials)("retrieve: invalid page tokens", () => {
+    // Empty / null tokens collapse the URL path so the server returns a
+    // non-400 status (no token at all is a different shape than a malformed
+    // one), surfacing as the base TwelvelabsApiError rather than
+    // BadRequestError specifically.
+    it("given empty page token '' when retrieve called throws TwelvelabsApiError", async () => {
+      await expect(client.search.retrieve("")).rejects.toBeInstanceOf(
+        TwelvelabsApiError,
+      );
+    });
+
+    it("given null page token when retrieve called throws TwelvelabsApiError", async () => {
+      await expect(
+        client.search.retrieve(null as unknown as string),
+      ).rejects.toBeInstanceOf(TwelvelabsApiError);
+    });
+  });
+
+  /**
+   * Transport-level failures. Pre-aborted user signals surface as the base
+   * TwelvelabsApiError ("The user aborted a request"). Sub-millisecond
+   * timeouts on Node's fetch implementation also surface as the base
+   * TwelvelabsApiError rather than TwelvelabsApiTimeoutError, because the
+   * thrown error doesn't carry the AbortError name the fetcher checks for.
+   */
+  describeIf(hasCredentials)("transport-level failures", () => {
+    it("given a pre-aborted AbortSignal when query runs throws TwelvelabsApiError", async () => {
+      const controller = new AbortController();
+      controller.abort();
+      const promise = client.search.query(
+        {
+          indexId: indexId!,
+          searchOptions: ["visual"],
+          queryText: broadQuery,
+          pageLimit: 1,
+        },
+        { abortSignal: controller.signal },
+      );
+      await expect(promise).rejects.toBeInstanceOf(TwelvelabsApiError);
+    });
+
+    it("given timeoutInSeconds=0.001 (sub-millisecond) when query runs throws TwelvelabsApiError", async () => {
+      const promise = client.search.query(
+        {
+          indexId: indexId!,
+          searchOptions: ["visual"],
+          queryText: broadQuery,
+          pageLimit: 1,
+        },
+        { timeoutInSeconds: 0.001, maxRetries: 0 },
+      );
+      await expect(promise).rejects.toBeInstanceOf(TwelvelabsApiError);
+    });
+  });
 });
