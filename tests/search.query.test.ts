@@ -1,20 +1,11 @@
 /**
- * Integration test suite for `client.search.query` from the twelvelabs-js SDK.
- *
+ * Integration tests for `client.search.query` from the twelvelabs-js SDK.
  * Tests run against the real TwelveLabs API and skip if credentials aren't
  * provided. See .env / .env.example for the required environment variables.
  *
- * Tests are organized using the ZOMBIES heuristic:
- *   Z - Zero          : empty / no-result paths
- *   O - One           : single-result path
- *   M - Many          : multi-result and pagination paths
- *   B - Boundaries    : limits documented by the API (pageLimit, 500-token query)
- *   I - Interfaces    : the request/response contract (params, return type)
- *   E - Exceptions    : documented errors (BadRequestError, invalid filter, ...)
- *   S - Simple scen.  : the canonical happy-path examples shown in the docs
- *
- * Per the original brief, accuracy of image-based search is not validated;
- * image tests only assert that the SDK call succeeds and returns a Page.
+ * Coverage is organized following the ZOMBIES heuristic. Per the original
+ * brief, accuracy of image-based search is not validated; image tests only
+ * assert that the SDK call succeeds and returns a Page.
  */
 
 import { TwelveLabs, TwelvelabsApi } from "twelvelabs-js";
@@ -33,8 +24,6 @@ import {
   describeIf,
 } from "./helpers/env";
 
-// A 24-character ObjectId-like value that should not match any real video,
-// used to force empty result sets via the documented `id` filter.
 const NONEXISTENT_VIDEO_ID = "000000000000000000000000";
 
 let client: TwelveLabs;
@@ -51,11 +40,8 @@ beforeAll(() => {
   client = new TwelveLabs({ apiKey: apiKey! });
 });
 
-describe("search.query (ZOMBIES, real SDK)", () => {
-  // ---------------------------------------------------------------------------
-  // Z - Zero
-  // ---------------------------------------------------------------------------
-  describeIf(hasCredentials)("Z - Zero", () => {
+describe("search.query", () => {
+  describeIf(hasCredentials)("when no videos match", () => {
     it("returns an empty Page when filter excludes every video", async () => {
       const response = await client.search.query({
         indexId: indexId!,
@@ -85,11 +71,8 @@ describe("search.query (ZOMBIES, real SDK)", () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // O - One
-  // ---------------------------------------------------------------------------
-  describeIf(hasCredentials)("O - One", () => {
-    it("returns at most one SearchItem with a valid shape when pageLimit=1", async () => {
+  describeIf(hasCredentials)("with pageLimit=1", () => {
+    it("returns at most one SearchItem with a valid shape", async () => {
       const response = await client.search.query({
         indexId: indexId!,
         searchOptions: ["visual"],
@@ -123,10 +106,7 @@ describe("search.query (ZOMBIES, real SDK)", () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // M - Many
-  // ---------------------------------------------------------------------------
-  describeIf(hasCredentials)("M - Many", () => {
+  describeIf(hasCredentials)("with multiple matches", () => {
     it("returns a Page whose data array obeys pageLimit", async () => {
       const response = await client.search.query({
         indexId: indexId!,
@@ -152,7 +132,6 @@ describe("search.query (ZOMBIES, real SDK)", () => {
       expect(response).toBeInstanceOf(Page);
 
       if (!response.hasNextPage()) {
-        // The index has 0-1 matching results; pagination contract is trivially satisfied.
         return;
       }
 
@@ -160,7 +139,6 @@ describe("search.query (ZOMBIES, real SDK)", () => {
       await response.getNextPage();
       expect(Array.isArray(response.data)).toBe(true);
       const secondPageIds = response.data.map((d) => d.videoId).join(",");
-      // Distinct page contents (unless the second page is empty, e.g. last page).
       if (response.data.length > 0) {
         expect(secondPageIds).not.toEqual(firstPageIds);
       }
@@ -194,7 +172,6 @@ describe("search.query (ZOMBIES, real SDK)", () => {
 
       expect(response).toBeInstanceOf(Page);
       for (const item of response.data) {
-        // Grouped responses identify the video and may include a clips array.
         expect(item.id ?? item.videoId).toEqual(expect.any(String));
         if (item.clips !== undefined) {
           expect(Array.isArray(item.clips)).toBe(true);
@@ -203,11 +180,8 @@ describe("search.query (ZOMBIES, real SDK)", () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // B - Boundaries
-  // ---------------------------------------------------------------------------
-  describeIf(hasCredentials)("B - Boundaries", () => {
-    it("accepts the documented maximum pageLimit of 50", async () => {
+  describeIf(hasCredentials)("at documented limits", () => {
+    it("accepts the maximum pageLimit of 50", async () => {
       const response = await client.search.query({
         indexId: indexId!,
         searchOptions: ["visual"],
@@ -218,7 +192,7 @@ describe("search.query (ZOMBIES, real SDK)", () => {
       expect(response.data.length).toBeLessThanOrEqual(50);
     });
 
-    it("accepts pageLimit=1 (lower practical bound)", async () => {
+    it("accepts pageLimit=1", async () => {
       const response = await client.search.query({
         indexId: indexId!,
         searchOptions: ["visual"],
@@ -240,17 +214,14 @@ describe("search.query (ZOMBIES, real SDK)", () => {
       expect(response).toBeInstanceOf(Page);
     });
 
-    it("rejects pageLimit > 50 with a server-side BadRequestError", async () => {
-      const promise = client.search.query({
-        indexId: indexId!,
-        searchOptions: ["visual"],
-        queryText: broadQuery,
-        pageLimit: 51,
-      });
-      // Some deployments coerce silently; accept either reject-with-error or
-      // a clamped response, but never silently return more than 50 items.
+    it("either rejects or clamps pageLimit > 50", async () => {
       try {
-        const response = await promise;
+        const response = await client.search.query({
+          indexId: indexId!,
+          searchOptions: ["visual"],
+          queryText: broadQuery,
+          pageLimit: 51,
+        });
         expect(response.data.length).toBeLessThanOrEqual(50);
       } catch (err) {
         expect(err).toBeInstanceOf(TwelvelabsApiError);
@@ -258,10 +229,7 @@ describe("search.query (ZOMBIES, real SDK)", () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // I - Interfaces
-  // ---------------------------------------------------------------------------
-  describeIf(hasCredentials)("I - Interfaces", () => {
+  describeIf(hasCredentials)("response contract", () => {
     it("returns a Page instance that implements AsyncIterable", async () => {
       const response = await client.search.query({
         indexId: indexId!,
@@ -311,10 +279,7 @@ describe("search.query (ZOMBIES, real SDK)", () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // E - Exceptions
-  // ---------------------------------------------------------------------------
-  describeIf(hasCredentials)("E - Exceptions", () => {
+  describeIf(hasCredentials)("invalid input", () => {
     it("throws BadRequestError on a malformed filter", async () => {
       await expect(
         client.search.query({
@@ -329,7 +294,6 @@ describe("search.query (ZOMBIES, real SDK)", () => {
     it("throws on an unsupported search option", async () => {
       const promise = client.search.query({
         indexId: indexId!,
-        // Cast intentionally: simulating a runtime payload that bypassed types.
         searchOptions: ["telepathy" as unknown as "visual"],
         queryText: broadQuery,
       });
@@ -346,11 +310,8 @@ describe("search.query (ZOMBIES, real SDK)", () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // E - Exceptions (compile-time guards: do not hit the API)
-  // ---------------------------------------------------------------------------
-  describe("E - Exceptions (compile-time guards)", () => {
-    it("indexId is required at the type level", () => {
+  describe("required parameters (compile-time)", () => {
+    it("indexId is required", () => {
       // @ts-expect-error indexId is required by SearchWrapper.QueryRequest
       const request: SearchWrapper.QueryRequest = {
         searchOptions: ["visual"],
@@ -359,7 +320,7 @@ describe("search.query (ZOMBIES, real SDK)", () => {
       expect(request).toBeDefined();
     });
 
-    it("searchOptions is required at the type level", () => {
+    it("searchOptions is required", () => {
       // @ts-expect-error searchOptions is required by SearchWrapper.QueryRequest
       const request: SearchWrapper.QueryRequest = {
         indexId: "x",
@@ -369,11 +330,8 @@ describe("search.query (ZOMBIES, real SDK)", () => {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // S - Simple scenarios (the docs' canonical examples)
-  // ---------------------------------------------------------------------------
-  describeIf(hasCredentials)("S - Simple scenarios (text)", () => {
-    it("runs the docs' basic text-search example", async () => {
+  describeIf(hasCredentials)("documented text-search example", () => {
+    it("runs the basic text-search example from the docs", async () => {
       const response = await client.search.query({
         indexId: indexId!,
         searchOptions: ["visual", "audio"],
@@ -387,9 +345,9 @@ describe("search.query (ZOMBIES, real SDK)", () => {
   });
 
   describeIf(hasImageUrl)(
-    "S - Simple scenarios (image, requires TWELVELABS_IMAGE_URL)",
+    "documented image-search example (requires TWELVELABS_IMAGE_URL)",
     () => {
-      it("runs the docs' single-image-URL search example", async () => {
+      it("runs the single-image-URL search example", async () => {
         const response = await client.search.query({
           indexId: indexId!,
           searchOptions: ["visual"],
