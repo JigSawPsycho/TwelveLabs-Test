@@ -288,6 +288,23 @@ indexing latency) instead of reusing a shared index. In return: no
 cross-run state, no quota for stray uploads, no need to manage repo
 variables for fixture IDs.
 
+#### Nightly cron
+
+The workflow also runs daily at 13:00 UTC on a `schedule` trigger. The
+suite hits the real production API, so a nightly run acts as an
+independent sanity check on the live service — catching upstream SDK
+or API regressions that land between PRs without anyone touching this
+repo.
+
+If this were being used to test a live API independently from the dev
+team owning that API, the nightly run is the integration point: a
+green run confirms the contract still holds end-to-end, and a red run
+is easy to wire up to notify the API's dev team (Slack webhook,
+PagerDuty, GitHub issue auto-open) before customers hit the
+regression. The JUnit XML artifact already uploaded by the workflow
+gives those notifications a structured payload (failing test name,
+file, error class) without any extra tooling.
+
 ## 한국어
 
 [`twelvelabs-js`](https://www.npmjs.com/package/twelvelabs-js) SDK의
@@ -573,3 +590,18 @@ search 엔드포인트가 레이트 리밋되어 있어 테스트는 `--runInBan
 지연 수 분)합니다 — 공유 인덱스 재사용 대신. 그 대가로: 실행 간 상태
 없음, 떠도는 업로드를 위한 쿼터 불필요, 픽스처 ID용 리포 변수 관리
 불필요.
+
+#### 야간 cron
+
+워크플로우는 `schedule` 트리거로 매일 UTC 13:00에도 실행됩니다.
+스위트는 실제 프로덕션 API를 호출하므로, 야간 실행은 라이브 서비스에
+대한 독립적인 sanity check 역할을 합니다 — PR 사이에 들어오는 업스트림
+SDK 또는 API 회귀를 이 리포에 누구도 손대지 않은 상태에서 잡아냅니다.
+
+API를 소유한 개발 팀과 독립적으로 라이브 API를 테스트하는 용도였다면,
+야간 실행이 통합 지점입니다: 녹색 실행은 계약이 end-to-end로 여전히
+유효함을 확인하고, 적색 실행은 고객이 회귀에 부딪히기 전에 API 개발
+팀에 알리도록 쉽게 연결할 수 있습니다(Slack 웹훅, PagerDuty, GitHub
+이슈 자동 생성). 워크플로우가 이미 업로드하는 JUnit XML 아티팩트는
+별도 툴링 없이 그러한 알림에 구조화된 페이로드(실패 테스트 이름, 파일,
+에러 클래스)를 제공합니다.
